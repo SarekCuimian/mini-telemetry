@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniTelemetry Trace Viewer</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div class="app-shell">
+    <header class="hero">
+        <div>
+            <p class="eyebrow">MiniTelemetry</p>
+            <h1>Trace Viewer</h1>
+            <p class="hero-copy">
+                用一页静态前端查看 trace、span 树、耗时分布和异常细节。支持内置样例数据，也支持直接粘贴 JSON。
+            </p>
+        </div>
+        <div class="hero-actions">
+            <button id="load-sample-btn" class="primary-btn">加载样例 Trace</button>
+            <label class="file-btn">
+                导入 JSON 文件
+                <input id="file-input" type="file" accept=".json,application/json">
+            </label>
+        </div>
+    </header>
+
+    <section class="toolbar">
+        <div class="toolbar-group">
+            <label for="status-filter">状态</label>
+            <select id="status-filter">
+                <option value="ALL">全部</option>
+                <option value="ERROR">ERROR</option>
+                <option value="OK">OK</option>
+                <option value="UNSET">UNSET</option>
+            </select>
+        </div>
+        <div class="toolbar-group">
+            <label for="search-input">搜索</label>
+            <input id="search-input" type="search" placeholder="span 名称 / attribute / traceId">
+        </div>
+        <div class="toolbar-group toolbar-grow">
+            <label for="json-input">粘贴 JSON</label>
+            <textarea id="json-input" rows="4" placeholder='支持两种格式：
+1. [{ traceId, spanId, ... }]
+2. [{ spanContext: { traceId, spanId }, ... }]' spellcheck="false"></textarea>
+        </div>
+        <div class="toolbar-group">
+            <button id="render-json-btn" class="secondary-btn">渲染 JSON</button>
+        </div>
+    </section>
+
+    <section class="summary-grid" id="summary-grid"></section>
+
+    <main class="workspace">
+        <aside class="panel traces-panel">
+            <div class="panel-head">
+                <h2>Trace 列表</h2>
+                <span id="trace-count" class="panel-meta"></span>
+            </div>
+            <div id="trace-list" class="trace-list"></div>
+        </aside>
+
+        <section class="panel explorer-panel">
+            <div class="panel-head">
+                <div>
+                    <h2 id="active-trace-title">未选择 Trace</h2>
+                    <p id="active-trace-meta" class="panel-subtitle">加载样例或导入 JSON 以开始查看</p>
+                </div>
+            </div>
+
+            <div class="trace-visuals">
+                <section>
+                    <div class="section-head">
+                        <h3>Span 树</h3>
+                    </div>
+                    <div id="span-tree" class="span-tree"></div>
+                </section>
+
+                <section>
+                    <div class="section-head">
+                        <h3>Timeline</h3>
+                    </div>
+                    <div id="timeline" class="timeline"></div>
+                </section>
+            </div>
+        </section>
+
+        <aside class="panel inspector-panel">
+            <div class="panel-head">
+                <h2>Span 详情</h2>
+            </div>
+            <div id="inspector" class="inspector empty-state">
+                选择一个 span 查看详情
+            </div>
+        </aside>
+    </main>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
