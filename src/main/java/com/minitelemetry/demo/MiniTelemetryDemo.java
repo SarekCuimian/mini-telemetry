@@ -139,6 +139,7 @@ public final class MiniTelemetryDemo {
     }
 
     private static void runParallelTasks() throws Exception {
+        // 先捕获父 Context，再把它包装进线程池任务，子线程里的 Span 才能挂到同一条 trace 上。
         Context parentContext = Context.current();
         List<Future<?>> futures = new ArrayList<Future<?>>();
 
@@ -194,8 +195,9 @@ public final class MiniTelemetryDemo {
                 .startSpan();
 
         try (Scope ignored = currentSpan.makeCurrent()) {
+            // 这里故意覆盖当前线程里的活动 Span，验证显式 parent 的优先级更高。
             Span child = TRACER.spanBuilder("inventory-check")
-                    .setParent(Context.root().with(explicitParent))
+                    .setParent(explicitParent.storeInContext(Context.root()))
                     .setSpanKind(SpanKind.CLIENT)
                     .startSpan();
 
@@ -280,6 +282,7 @@ public final class MiniTelemetryDemo {
     }
 
     private static void dispatchBackgroundJob(final String jobId) throws Exception {
+        // fire-and-forget 场景同样需要先抓取 Context，否则子线程看不到当前请求链路。
         final Context captured = Context.current();
         Future<?> future = EXECUTOR.submit(captured.wrap(new Runnable() {
             @Override

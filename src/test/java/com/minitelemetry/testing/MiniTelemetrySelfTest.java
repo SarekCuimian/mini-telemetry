@@ -6,6 +6,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import com.minitelemetry.context.Context;
+import com.minitelemetry.context.ContextKey;
 import com.minitelemetry.context.Scope;
 import com.minitelemetry.trace.ReadableSpan;
 import com.minitelemetry.trace.Span;
@@ -19,6 +20,7 @@ public final class MiniTelemetrySelfTest {
 
     public static void main(String[] args) throws Exception {
         currentContextDefaultsToRootWithoutSpan();
+        contextStoresTypedValuesImmutably();
         rootSpanStartsNewTraceAndHasNoParent();
         childSpanInheritsTraceAndParentSpanId();
         explicitParentOverridesCurrentContext();
@@ -35,6 +37,27 @@ public final class MiniTelemetrySelfTest {
     private static void currentContextDefaultsToRootWithoutSpan() {
         check(Context.current() == Context.root(), "default current context should be root");
         check(Span.current() == null, "default current span should be null");
+    }
+
+    private static void contextStoresTypedValuesImmutably() {
+        ContextKey<String> requestIdKey = ContextKey.create("request-id");
+        ContextKey<Long> userIdKey = ContextKey.create("user-id");
+
+        Context root = Context.root();
+        Context enriched = root.with(requestIdKey, "req-1001").with(userIdKey, 123L);
+
+        check(root.get(requestIdKey) == null, "root context should stay immutable");
+        check("req-1001".equals(enriched.get(requestIdKey)), "context should return typed string value");
+        check(Long.valueOf(123L).equals(enriched.get(userIdKey)), "context should return typed long value");
+
+        try (Scope ignored = enriched.makeCurrent()) {
+            check(Context.current() == enriched, "makeCurrent should install enriched context");
+            check("req-1001".equals(Context.current().get(requestIdKey)), "current context should expose request-id");
+        }
+
+        check(Context.current() == Context.root(), "scope close should restore root context");
+        Context.remove();
+        check(Context.current() == Context.root(), "remove should reset current context to root");
     }
 
     private static void rootSpanStartsNewTraceAndHasNoParent() {
@@ -91,7 +114,7 @@ public final class MiniTelemetrySelfTest {
 
         try (Scope ignored = outer.makeCurrent()) {
             Span child = tracer.spanBuilder("child")
-                    .setParent(Context.root().with(explicitParent))
+                    .setParent(explicitParent.storeInContext(Context.root()))
                     .startSpan();
             child.end();
         } finally {

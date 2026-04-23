@@ -3,6 +3,9 @@ package com.minitelemetry.exporter;
 import java.time.Instant;
 import com.minitelemetry.trace.ReadableSpan;
 
+/**
+ * 将 Span 数据输出到标准输出的简单导出器。
+ */
 public final class LoggingSpanExporter implements SpanExporter {
     @Override
     public void export(ReadableSpan span) {
