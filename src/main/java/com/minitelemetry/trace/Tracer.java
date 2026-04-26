@@ -1,26 +1,26 @@
 package com.minitelemetry.trace;
 
-import java.util.Objects;
 import com.minitelemetry.exporter.SpanExporter;
 
 /**
  * Span 的创建入口。
  *
- * <p>当前实现中，{@link Tracer} 负责持有导出器并创建 {@link SpanBuilder}。</p>
+ * <p>{@link Tracer} 由 {@link TracerProvider} 管理并复用；业务代码通常通过
+ * {@code MiniTelemetry.getTracer(...)} 获取它，而不是直接创建。</p>
  */
 public final class Tracer {
     private final String name;
-    private final SpanExporter exporter;
+    private final TracerProvider provider;
 
     /**
      * 创建一个新的 Tracer。
      *
      * @param name Tracer 名称
-     * @param exporter Span 导出器
+     * @param provider Tracer 所属 Provider
      */
-    public Tracer(String name, SpanExporter exporter) {
-        this.name = Objects.requireNonNull(name, "name");
-        this.exporter = Objects.requireNonNull(exporter, "exporter");
+    Tracer(String name, TracerProvider provider) {
+        this.name = java.util.Objects.requireNonNull(name, "name");
+        this.provider = java.util.Objects.requireNonNull(provider, "provider");
     }
 
     /**
@@ -38,7 +38,7 @@ public final class Tracer {
      * <p>该方法仅供 trace 包内部使用。</p>
      */
     SpanExporter getExporter() {
-        return exporter;
+        return provider.getExporter();
     }
 
     /**

@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import com.minitelemetry.api.MiniTelemetry;
 import com.minitelemetry.context.Context;
 import com.minitelemetry.context.Scope;
 import com.minitelemetry.exporter.LoggingSpanExporter;
@@ -16,7 +17,10 @@ import com.minitelemetry.trace.Tracer;
 
 public final class MiniTelemetryDemo {
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(4);
-    private static final Tracer TRACER = new Tracer("demo-tracer", new LoggingSpanExporter());
+    private static final MiniTelemetry OPEN_TELEMETRY = MiniTelemetry.builder()
+            .setSpanExporter(new LoggingSpanExporter())
+            .build();
+    private static final Tracer TRACER = OPEN_TELEMETRY.getTracer("demo-tracer");
 
     private MiniTelemetryDemo() {
     }

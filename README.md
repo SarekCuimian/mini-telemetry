@@ -2,6 +2,7 @@
 
 一个按 OpenTelemetry 核心思路缩小后的最小实现，包含：
 
+- `MiniOpenTelemetry` 顶层入口，用法对齐 `openTelemetry.getTracer(...)`
 - `Context` / `Scope` / `ThreadLocalContextStorage`
 - `Tracer` / `SpanBuilder` / `Span`
 - `SpanExporter` 与一个控制台 `LoggingSpanExporter`
@@ -9,6 +10,7 @@
 
 当前 Java 包结构：
 
+- `com.minitelemetry.api`
 - `com.minitelemetry.context`
 - `com.minitelemetry.trace`
 - `com.minitelemetry.exporter`
@@ -34,6 +36,45 @@ java -cp out com.minitelemetry.demo.MiniTelemetryDemo
 - `setParent(...)` 显式覆盖当前上下文
 - 异常链路里的 `recordException()`
 - fire-and-forget 后台任务的手动上下文捕获
+
+Spring 风格的最小接入示例：
+
+```java
+@Configuration
+public class MiniTelemetryConfig {
+
+    @Bean
+    public MiniOpenTelemetry miniOpenTelemetry() {
+        return MiniOpenTelemetry.builder()
+                .setSpanExporter(new LoggingSpanExporter())
+                .build();
+    }
+}
+```
+
+```java
+@Service
+public class OrderService {
+    private final Tracer tracer;
+
+    public OrderService(MiniOpenTelemetry openTelemetry) {
+        this.tracer = openTelemetry.getTracer("order");
+    }
+
+    public void createOrder(String orderId) {
+        Span span = tracer.spanBuilder("OrderService.createOrder").startSpan();
+        try (Scope ignored = span.makeCurrent()) {
+            span.setAttribute("order.id", orderId);
+            span.setStatus(StatusCode.OK, "success");
+        } catch (Exception e) {
+            span.recordException(e);
+            throw e;
+        } finally {
+            span.end();
+        }
+    }
+}
+```
 
 运行自检：
 

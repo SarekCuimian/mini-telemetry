@@ -5,10 +5,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import com.minitelemetry.api.MiniTelemetry;
 import com.minitelemetry.context.Context;
 import com.minitelemetry.context.ContextKey;
 import com.minitelemetry.context.Scope;
 import com.minitelemetry.trace.ReadableSpan;
+import com.minitelemetry.trace.TracerProvider;
 import com.minitelemetry.trace.Span;
 import com.minitelemetry.trace.SpanKind;
 import com.minitelemetry.trace.StatusCode;
@@ -21,6 +23,8 @@ public final class MiniTelemetrySelfTest {
     public static void main(String[] args) throws Exception {
         currentContextDefaultsToRootWithoutSpan();
         contextStoresTypedValuesImmutably();
+        providerReusesTracerByName();
+        openTelemetryDelegatesTracerLookupToProvider();
         rootSpanStartsNewTraceAndHasNoParent();
         childSpanInheritsTraceAndParentSpanId();
         explicitParentOverridesCurrentContext();
@@ -60,9 +64,35 @@ public final class MiniTelemetrySelfTest {
         check(Context.current() == Context.root(), "remove should reset current context to root");
     }
 
+    private static void providerReusesTracerByName() {
+        TracerProvider provider = TracerProvider.builder()
+                .setSpanExporter(new InMemorySpanExporter())
+                .build();
+
+        Tracer first = provider.get("test-tracer");
+        Tracer second = provider.get("test-tracer");
+        Tracer other = provider.get("other-tracer");
+
+        check(first == second, "provider should reuse tracer instance by name");
+        check(first != other, "different tracer names should produce different tracer instances");
+    }
+
+    private static void openTelemetryDelegatesTracerLookupToProvider() {
+        TracerProvider provider = TracerProvider.builder()
+                .setSpanExporter(new InMemorySpanExporter())
+                .build();
+        MiniTelemetry openTelemetry = new MiniTelemetry(provider);
+
+        Tracer first = openTelemetry.getTracer("test-tracer");
+        Tracer second = openTelemetry.getTracer("test-tracer");
+
+        check(first == second, "MiniTelemetry should delegate tracer lookup to provider cache");
+        check(provider == openTelemetry.getTracerProvider(), "MiniTelemetry should expose its provider");
+    }
+
     private static void rootSpanStartsNewTraceAndHasNoParent() {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
 
         Span root = tracer.spanBuilder("root").setSpanKind(SpanKind.SERVER).startSpan();
         root.end();
@@ -76,7 +106,7 @@ public final class MiniTelemetrySelfTest {
 
     private static void childSpanInheritsTraceAndParentSpanId() {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
 
         Span parent = tracer.spanBuilder("parent").setSpanKind(SpanKind.SERVER).startSpan();
         try (Scope ignored = parent.makeCurrent()) {
@@ -107,7 +137,7 @@ public final class MiniTelemetrySelfTest {
 
     private static void explicitParentOverridesCurrentContext() {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
 
         Span outer = tracer.spanBuilder("outer").startSpan();
         Span explicitParent = tracer.spanBuilder("explicit-parent").startSpan();
@@ -135,7 +165,7 @@ public final class MiniTelemetrySelfTest {
 
     private static void capturedContextCanBePropagatedToAnotherThread() throws Exception {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         Span parent = tracer.spanBuilder("parent").setSpanKind(SpanKind.SERVER).startSpan();
@@ -175,7 +205,7 @@ public final class MiniTelemetrySelfTest {
 
     private static void wrappedCallablePropagatesContextAndReturnsValue() throws Exception {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         Span parent = tracer.spanBuilder("parent").startSpan();
@@ -207,7 +237,7 @@ public final class MiniTelemetrySelfTest {
     private static void wrappedRunnableRestoresWorkerThreadContextAfterExecution() throws Exception {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            Span parent = new Tracer("test-tracer", new InMemorySpanExporter()).spanBuilder("parent").startSpan();
+            Span parent = newTestTracer(new InMemorySpanExporter()).spanBuilder("parent").startSpan();
             try (Scope ignored = parent.makeCurrent()) {
                 Future<?> wrapped = executor.submit(Context.current().wrap(new Runnable() {
                     @Override
@@ -234,7 +264,7 @@ public final class MiniTelemetrySelfTest {
 
     private static void outOfOrderScopeCloseDoesNotCorruptCurrentContext() {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
 
         Span outer = tracer.spanBuilder("outer").startSpan();
         Scope outerScope = outer.makeCurrent();
@@ -254,7 +284,7 @@ public final class MiniTelemetrySelfTest {
 
     private static void recordExceptionSetsErrorStatusAndExceptionAttributes() {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
 
         Span span = tracer.spanBuilder("error-span").startSpan();
         IllegalArgumentException exception = new IllegalArgumentException("bad input");
@@ -279,7 +309,7 @@ public final class MiniTelemetrySelfTest {
 
     private static void endIsIdempotent() {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
 
         Span span = tracer.spanBuilder("once").startSpan();
         span.end();
@@ -291,7 +321,7 @@ public final class MiniTelemetrySelfTest {
 
     private static void attributesAreExposedAsSnapshot() {
         InMemorySpanExporter exporter = new InMemorySpanExporter();
-        Tracer tracer = new Tracer("test-tracer", exporter);
+        Tracer tracer = newTestTracer(exporter);
 
         Span span = tracer.spanBuilder("snapshot").startSpan();
         span.setAttribute("k1", "v1");
@@ -306,6 +336,13 @@ public final class MiniTelemetrySelfTest {
 
         check(unsupported, "attribute snapshot should be immutable");
         span.end();
+    }
+
+    private static Tracer newTestTracer(InMemorySpanExporter exporter) {
+        MiniTelemetry openTelemetry = MiniTelemetry.builder()
+                .setSpanExporter(exporter)
+                .build();
+        return openTelemetry.getTracer("test-tracer");
     }
 
     private static void check(boolean condition, String message) {
