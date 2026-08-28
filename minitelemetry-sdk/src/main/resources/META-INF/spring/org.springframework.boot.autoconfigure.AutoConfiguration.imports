@@ -1,0 +1,4 @@
+com.minitelemetry.sdk.autoconfigure.SamplingAutoConfiguration
+com.minitelemetry.sdk.autoconfigure.TraceAutoConfiguration
+com.minitelemetry.sdk.autoconfigure.PropagationAutoConfiguration
+com.minitelemetry.sdk.autoconfigure.LoggingAutoConfiguration

@@ -1,0 +1,6 @@
+target/
+out/
+.m2/
+.idea/
+
+.java-version
