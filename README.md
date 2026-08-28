@@ -34,8 +34,8 @@ minitelemetry/
 ## 构建
 
 ```bash
-git clone https://github.com/SarekCui/mini-telemetry.git
-cd mini-telemetry
+git clone https://github.com/SarekCui/minitelemetry.git
+cd minitelemetry
 mvn clean package
 ```
 
